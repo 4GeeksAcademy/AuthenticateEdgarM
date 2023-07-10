@@ -1,18 +1,31 @@
-"""
-This module takes care of starting the API Server, Loading the DB and Adding the endpoints
-"""
-from flask import Flask, request, jsonify, url_for, Blueprint
-from api.models import db, User
-from api.utils import generate_sitemap, APIException
+from flask import Flask, request, jsonify
+from flask_sqlalchemy import SQLAlchemy
+from flask_cors import CORS
 
-api = Blueprint('api', __name__)
+app = Flask(__name__)
+CORS(app) # This will enable CORS for all routes
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/test.db'
+db = SQLAlchemy(app)
 
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password = db.Column(db.String(128), nullable=False)
 
-@api.route('/hello', methods=['POST', 'GET'])
-def handle_hello():
+@app.route('/signup', methods=['POST'])
+def signup():
+    data = request.get_json()
+    new_user = User(email=data['email'], password=data['password'])
+    db.session.add(new_user)
+    db.session.commit()
+    return jsonify({'message': 'registered successfully'}), 201
 
-    response_body = {
-        "message": "Hello! I'm a message that came from the backend, check the network tab on the google inspector and you will see the GET request"
-    }
-
-    return jsonify(response_body), 200
+@app.route('/token', methods=['POST'])
+def login():
+    data = request.get_json()
+    user = User.query.filter_by(email=data['email']).first()
+    if user and user.password == data['password']:
+        # Here we are using user id as the token for simplicity
+        token = str(user.id)
+        return jsonify({'token': token}), 200
+    return jsonify({'message': 'Invalid email or password'}), 401
